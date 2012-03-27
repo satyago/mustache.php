@@ -496,7 +496,7 @@ class Mustache_Mustache {
 	 * @return array Token tree
 	 */
 	private function parse($source) {
-		return $this->getParser()->parse($this->tokenize($source));
+		return $this->getParser()->parse($source, $this->tokenize($source));
 	}
 
 	/**

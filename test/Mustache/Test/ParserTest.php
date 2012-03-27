@@ -11,6 +11,7 @@
 
 /**
  * @group unit
+ * @group parser
  */
 class Mustache_Test_ParserTest extends PHPUnit_Framework_TestCase {
 
@@ -20,7 +21,7 @@ class Mustache_Test_ParserTest extends PHPUnit_Framework_TestCase {
 	public function testParse($tokens, $expected)
 	{
 		$parser = new Mustache_Parser;
-		$this->assertEquals($expected, $parser->parse($tokens));
+		$this->assertEquals($expected, $parser->parse('', $tokens));
 	}
 
 	public function getTokenSets()
@@ -28,7 +29,7 @@ class Mustache_Test_ParserTest extends PHPUnit_Framework_TestCase {
 		return array(
 			array(
 				array(),
-				array()
+				$this->rootNode()
 			),
 
 			array(
@@ -36,9 +37,8 @@ class Mustache_Test_ParserTest extends PHPUnit_Framework_TestCase {
 					Mustache_Tokenizer::TYPE  => Mustache_Tokenizer::T_TEXT,
 					Mustache_Tokenizer::VALUE => 'text'
 				)),
-				array(array(
-					Mustache_Tokenizer::TYPE  => Mustache_Tokenizer::T_TEXT,
-					Mustache_Tokenizer::VALUE => 'text'
+				$this->rootNode(array(
+					$this->textNode('text')
 				)),
 			),
 
@@ -47,9 +47,8 @@ class Mustache_Test_ParserTest extends PHPUnit_Framework_TestCase {
 					Mustache_Tokenizer::TYPE => Mustache_Tokenizer::T_ESCAPED,
 					Mustache_Tokenizer::NAME => 'name'
 				)),
-				array(array(
-					Mustache_Tokenizer::TYPE => Mustache_Tokenizer::T_ESCAPED,
-					Mustache_Tokenizer::NAME => 'name'
+				$this->rootNode(array(
+					$this->escapedNode('name')
 				)),
 			),
 
@@ -78,31 +77,24 @@ class Mustache_Test_ParserTest extends PHPUnit_Framework_TestCase {
 						Mustache_Tokenizer::VALUE => 'bar'
 					),
 				),
-				array(
-					array(
-						Mustache_Tokenizer::TYPE  => Mustache_Tokenizer::T_TEXT,
-						Mustache_Tokenizer::VALUE => 'foo'
-					),
-					array(
-						Mustache_Tokenizer::TYPE  => Mustache_Tokenizer::T_INVERTED,
-						Mustache_Tokenizer::NAME  => 'parent',
-						Mustache_Tokenizer::INDEX => 123,
-						Mustache_Tokenizer::END   => 456,
-						Mustache_Tokenizer::NODES => array(
-							array(
-								Mustache_Tokenizer::TYPE => Mustache_Tokenizer::T_ESCAPED,
-								Mustache_Tokenizer::NAME => 'name'
-							),
-						),
-					),
-					array(
-						Mustache_Tokenizer::TYPE  => Mustache_Tokenizer::T_TEXT,
-						Mustache_Tokenizer::VALUE => 'bar'
-					),
-				),
+				$this->rootNode(array(
+					$this->textNode('foo'),
+					$this->invertedNode('parent', 123, 456, array(
+						$this->escapedNode('name'),
+					)),
+					$this->textNode('bar'),
+				)),
 			),
 
 		);
+	}
+
+	/**
+	 * @expectedException InvalidArgumentException
+	 */
+	public function testCompilerThrowsUnknownNodeTypeException() {
+		$parser = new Mustache_Parser;
+		$parser->parse('', array(array(Mustache_Tokenizer::TYPE => 'invalid')));
 	}
 
 	/**
@@ -111,7 +103,7 @@ class Mustache_Test_ParserTest extends PHPUnit_Framework_TestCase {
 	 */
 	public function testParserThrowsExceptions($tokens) {
 		$parser = new Mustache_Parser;
-		$parser->parse($tokens);
+		$parser->parse('', $tokens);
 	}
 
 	public function getBadParseTrees() {
@@ -123,6 +115,9 @@ class Mustache_Test_ParserTest extends PHPUnit_Framework_TestCase {
 						Mustache_Tokenizer::TYPE  => Mustache_Tokenizer::T_SECTION,
 						Mustache_Tokenizer::NAME  => 'parent',
 						Mustache_Tokenizer::INDEX => 123,
+						Mustache_Tokenizer::END   => 456,
+						Mustache_Tokenizer::OTAG  => '{{',
+						Mustache_Tokenizer::CTAG  => '}}',
 					),
 				),
 			),
@@ -134,6 +129,9 @@ class Mustache_Test_ParserTest extends PHPUnit_Framework_TestCase {
 						Mustache_Tokenizer::TYPE  => Mustache_Tokenizer::T_INVERTED,
 						Mustache_Tokenizer::NAME  => 'parent',
 						Mustache_Tokenizer::INDEX => 123,
+						Mustache_Tokenizer::END   => 456,
+						Mustache_Tokenizer::OTAG  => '{{',
+						Mustache_Tokenizer::CTAG  => '}}',
 					),
 				),
 			),
@@ -145,6 +143,9 @@ class Mustache_Test_ParserTest extends PHPUnit_Framework_TestCase {
 						Mustache_Tokenizer::TYPE  => Mustache_Tokenizer::T_END_SECTION,
 						Mustache_Tokenizer::NAME  => 'parent',
 						Mustache_Tokenizer::INDEX => 123,
+						Mustache_Tokenizer::END   => 456,
+						Mustache_Tokenizer::OTAG  => '{{',
+						Mustache_Tokenizer::CTAG  => '}}',
 					),
 				),
 			),
@@ -156,24 +157,63 @@ class Mustache_Test_ParserTest extends PHPUnit_Framework_TestCase {
 						Mustache_Tokenizer::TYPE  => Mustache_Tokenizer::T_SECTION,
 						Mustache_Tokenizer::NAME  => 'parent',
 						Mustache_Tokenizer::INDEX => 123,
+						Mustache_Tokenizer::END   => 456,
+						Mustache_Tokenizer::OTAG  => '{{',
+						Mustache_Tokenizer::CTAG  => '}}',
 					),
 					array(
 						Mustache_Tokenizer::TYPE  => Mustache_Tokenizer::T_SECTION,
 						Mustache_Tokenizer::NAME  => 'child',
 						Mustache_Tokenizer::INDEX => 123,
+						Mustache_Tokenizer::END   => 456,
+						Mustache_Tokenizer::OTAG  => '{{',
+						Mustache_Tokenizer::CTAG  => '}}',
 					),
 					array(
 						Mustache_Tokenizer::TYPE  => Mustache_Tokenizer::T_END_SECTION,
 						Mustache_Tokenizer::NAME  => 'parent',
 						Mustache_Tokenizer::INDEX => 123,
+						Mustache_Tokenizer::END   => 456,
+						Mustache_Tokenizer::OTAG  => '{{',
+						Mustache_Tokenizer::CTAG  => '}}',
 					),
 					array(
 						Mustache_Tokenizer::TYPE  => Mustache_Tokenizer::T_END_SECTION,
 						Mustache_Tokenizer::NAME  => 'child',
 						Mustache_Tokenizer::INDEX => 123,
+						Mustache_Tokenizer::END   => 456,
+						Mustache_Tokenizer::OTAG  => '{{',
+						Mustache_Tokenizer::CTAG  => '}}',
 					),
 				),
 			),
 		);
+	}
+
+
+	private function textNode($value) {
+		return new Mustache_Node_Text(array(Mustache_Tokenizer::VALUE => $value));
+	}
+
+	private function escapedNode($name) {
+		return new Mustache_Node_EscapedVariable(array(Mustache_Tokenizer::NAME => $name));
+	}
+
+	private function rootNode($nodes = array()) {
+		$node = new Mustache_Node_Root;
+		$node->nodes = $nodes;
+
+		return $node;
+	}
+
+	private function invertedNode($name, $index, $end, $nodes) {
+		$node = new Mustache_Node_InvertedSection(array(
+			Mustache_Tokenizer::NAME  => $name,
+			Mustache_Tokenizer::INDEX => $index,
+			Mustache_Tokenizer::END   => $end,
+		));
+		$node->nodes = $nodes;
+
+		return $node;
 	}
 }

@@ -23,8 +23,13 @@ class Mustache_Parser {
 	 *
 	 * @return array Mustache token parse tree
 	 */
-	public function parse(array $tokens = array()) {
-		return $this->buildTree(new ArrayIterator($tokens));
+	public function parse($source, array $tokens = array()) {
+		$this->source = $source;
+
+		$tree = new Mustache_Node_Root;
+		$tree->nodes = $this->buildTree(new ArrayIterator($tokens));
+
+		return $tree;
 	}
 
 	/**
@@ -37,7 +42,7 @@ class Mustache_Parser {
 	 *
 	 * @return array Mustache Token parse tree
 	 */
-	private function buildTree(ArrayIterator $tokens, array $parent = null) {
+	private function buildTree(ArrayIterator $tokens, Mustache_Node_Parent $parent = null) {
 		$nodes = array();
 
 		do {
@@ -49,8 +54,11 @@ class Mustache_Parser {
 			} else {
 				switch ($token[Mustache_Tokenizer::TYPE]) {
 					case Mustache_Tokenizer::T_SECTION:
+						$nodes[] = $this->buildTree($tokens, new Mustache_Node_Section($token));
+						break;
+
 					case Mustache_Tokenizer::T_INVERTED:
-						$nodes[] = $this->buildTree($tokens, $token);
+						$nodes[] = $this->buildTree($tokens, new Mustache_Node_InvertedSection($token));
 						break;
 
 					case Mustache_Tokenizer::T_END_SECTION:
@@ -58,18 +66,44 @@ class Mustache_Parser {
 							throw new LogicException('Unexpected closing tag: /'. $token[Mustache_Tokenizer::NAME]);
 						}
 
-						if ($token[Mustache_Tokenizer::NAME] !== $parent[Mustache_Tokenizer::NAME]) {
-							throw new LogicException('Nesting error: ' . $parent[Mustache_Tokenizer::NAME] . ' vs. ' . $token[Mustache_Tokenizer::NAME]);
+						if ($token[Mustache_Tokenizer::NAME] !== $parent->name) {
+							throw new LogicException('Nesting error: ' . $parent->name . ' vs. ' . $token[Mustache_Tokenizer::NAME]);
 						}
 
-						$parent[Mustache_Tokenizer::END]   = $token[Mustache_Tokenizer::INDEX];
-						$parent[Mustache_Tokenizer::NODES] = $nodes;
+						if ($parent instanceof Mustache_Node_Section) {
+							$parent->end    = $token[Mustache_Tokenizer::INDEX];
+							$parent->source = substr($this->source, $parent->index, ($parent->end - $parent->index));
+						}
+
+						$parent->nodes = $nodes;
 
 						return $parent;
 						break;
 
+					case Mustache_Tokenizer::T_PARTIAL:
+					case Mustache_Tokenizer::T_PARTIAL_2:
+						$nodes[] = new Mustache_Node_Partial($token);
+						break;
+
+					case Mustache_Tokenizer::T_UNESCAPED:
+					case Mustache_Tokenizer::T_UNESCAPED_2:
+						$nodes[] = new Mustache_Node_Variable($token);
+						break;
+
+					case Mustache_Tokenizer::T_COMMENT:
+						$nodes[] = new Mustache_Node_Comment($token);
+						break;
+
+					case Mustache_Tokenizer::T_ESCAPED:
+						$nodes[] = new Mustache_Node_EscapedVariable($token);
+						break;
+
+					case Mustache_Tokenizer::T_TEXT:
+						$nodes[] = new Mustache_Node_Text($token);
+						break;
+
 					default:
-						$nodes[] = $token;
+						throw new InvalidArgumentException('Unknown token type: '.json_encode($token));
 						break;
 				}
 			}
@@ -77,7 +111,7 @@ class Mustache_Parser {
 		} while ($tokens->valid());
 
 		if (isset($parent)) {
-			throw new LogicException('Missing closing tag: ' . $parent[Mustache_Tokenizer::NAME]);
+			throw new LogicException('Missing closing tag: ' . $parent->name);
 		}
 
 		return $nodes;
